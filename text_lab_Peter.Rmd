@@ -1,6 +1,5 @@
 ---
 title: "text_lab_Peter"
-author: "Peter Shin"
 date: "10/20/2021"
 output: html_document
 ---
@@ -9,22 +8,156 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r}
+library(tidyverse)
+#install.packages("tidytext")
+library(tidytext)
+#install.packages("ggwordcloud")
+library(ggwordcloud)
+#install.packages("gutenbergr") 
+library(gutenbergr)
+#install.packages('textdata')
+library(textdata)
+# setwd("/cloud/project/tidytext")
+# save.image("tidytext.RData")
 ```
 
-## Including Plots
 
-You can also embed plots, for example:
+```{r}
+# Read data
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+doc1 <- read_lines("text_data/texas/texas1.txt")
+doc2 <- read_lines("text_data/texas/texas2.txt")
+doc3 <- read_lines("text_data/texas/texas3.txt")
+doc4 <- read_lines("text_data/texas/texas4.txt")
+doc5 <- read_lines("text_data/texas/texas5.txt")
+doc <- paste(doc1, doc2, doc3, doc4, doc5)
+
+doc_full_char = c(doc1,doc2,doc3,doc4,doc5)
+doc_full = paste(doc_full_char, collapse=" ")
+doc_table = tibble(doc_full)
+doc_table$doc_full <- as.character(doc_table$doc_full)
+View(doc_table)
+```
+### Word Frequencies
+```{r}
+ah_word <- doc_table %>%
+  unnest_tokens(word, doc_full)
+ah_count <- ah_word %>%
+  count(word, sort=TRUE)
+view(ah_count)
+ah_count$word <- as.factor(ah_count$word)  
+ah_word_sw <- ah_word %>%
+      anti_join(stop_words)
+ah_count_sw <- ah_word_sw %>%
+  count(word, sort=TRUE)
+ah_count_sw$word <- as.factor(ah_count_sw$word) 
+ggplot(
+  data = ah_count_sw[1:20,],
+  aes(x = fct_reorder(word,n), 
+      y = n)
+  ) + 
+  geom_col() + 
+  coord_flip()+
+  theme_light()
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+### Tokenization 
+```{r}
+#Tokenization by word
+doc_word = doc_table %>% 
+  unnest_tokens(word, doc_full)%>%
+  anti_join(stop_words)%>%
+  count(word,sort=TRUE)
+View(doc_word)
+#Tokenization by sentence
+doc_sentence = doc_table %>% 
+  unnest_tokens(sentence, doc_full, token = "sentences")
+View(doc_sentence)
+```
+
+
+```{r}
+#helps with the sentiment analysis, using package "textdata"
+get_sentiments('afinn')# we see a list of words and there classification, 2,467 - not really that many overall. 
+get_sentiments('nrc')# looks like a good amount more 13,891, but as we can see words are classified in several different categories. 
+get_sentiments('bing')# looks like a good amount more 6,776, but as we can see just negative and positive. 
+texas_sentiment_afinn = doc_word %>% inner_join(get_sentiments("afinn"))
+texas_sentiment_nrc = doc_word %>% inner_join(get_sentiments("nrc"))
+texas_sentiment_bing = doc_word %>% inner_join(get_sentiments("bing"))
+View(texas_sentiment_afinn)#discrete integer rating
+View(texas_sentiment_nrc)#a sentiment cateogry
+View(texas_sentiment_bing)#binary positive or negative classification
+```
+
+### Texas Climate Change Sentiment Range
+```{r}
+ggplot(data = texas_sentiment_afinn, 
+       aes(x=value)
+        )+
+  geom_histogram()+
+  ggtitle("Texas Climate Change Sentiment Range")+
+  theme_minimal()
+ggplot(data = texas_sentiment_nrc, 
+       aes(x=sentiment)
+        )+
+  geom_histogram(stat = "count")+
+  ggtitle("Texas Climate Change Sentiment Categories")+
+  theme_minimal()
+ggplot(data = texas_sentiment_bing, 
+       aes(x=sentiment)
+        )+
+  geom_histogram(stat = "count")+
+  ggtitle("Texas Climate Change Sentiment")+
+  theme_minimal()
+```
+
+### Word Cloud
+
+```{r}
+set.seed(42)
+ggplot(doc_word[1:100,], aes(label = word, size = n)
+       ) +
+  geom_text_wordcloud() +
+  theme_minimal()
+```
+
+### Term frequency - inverse document 
+```{r}
+doc1 = read_lines("text_data/texas/texas1.txt")
+doc2 = read_lines("text_data/texas/texas2.txt")
+doc3 = read_lines("text_data/texas/texas3.txt")
+doc4 = read_lines("text_data/texas/texas4.txt")
+doc5 = read_lines("text_data/texas/texas5.txt")
+data_prep <- function(x){
+  i <- as_tibble(t(x))
+  ii <- unite(i,"text",remove = TRUE,sep = "")
+}
+doc1_bag = data_prep(doc1)
+doc2_bag = data_prep(doc2)
+doc3_bag = data_prep(doc3)
+doc4_bag = data_prep(doc4)
+doc5_bag = data_prep(doc5)
+View(doc2_bag)
+docs = c("doc1", "doc2", "doc3", "doc4", "doc5")
+tf_idf_text = tibble(docs, text=t(tibble(doc1_bag, doc2_bag, doc3_bag, doc4_bag, doc5_bag, .name_repair="universal")))
+View(tf_idf_text)
+word_count <- tf_idf_text %>%
+  unnest_tokens(word, text) %>%
+  count(docs, word, sort = TRUE)
+total_words <- word_count %>% 
+  group_by(docs) %>% 
+  summarize(total = sum(n))
+texas_words <- left_join(word_count, total_words)
+View(texas_words)
+texas_words <- texas_words %>%
+  bind_tf_idf(word, docs, n)
+```
+
+### Conclusion
+```{r}
+head(doc_word, 15)
+```
+
+The top 15 words in this aggregation of articles from Texas include words such as climate, change, texas, lubbock, etc. These words show up as a result of the topic as well as the source location. Then the following top words that pop up include Hayhoe, carbon, science, and energy. Hayhoe is an atmospheric scientist, and among the words that came up, it seems that Texas articles focus on the scientific aspect of climate change related to carbon and energy.  Also, another group of top words that occur frequently are Trump, U.S., and world. This implies that these articles also focus on the political aspect of climate change. These articles were focused around 2020 to 2021, which explains why President Trump's name occurs often in these political articles.
+According to the sentiment analysis, it most likely implies that there isn't a stark difference between the positive and negative sentiment on climate change in this area. However, it does lean a little toward the negative side. 
