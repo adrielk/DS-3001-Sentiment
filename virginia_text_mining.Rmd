@@ -66,9 +66,8 @@ ggplot(
   coord_flip()+
   theme_light()
 
-
-
 ```
+According to these frequencies, climate, change, carbon, tourism, temperatures, and emissions are most commonly mentioned in Virginia news articles. These are words that one would expect to see when reading climate change related news articles. These words suggest that Virginia news articles are focused on describing the problem of climate change and factors involved such as carbon, tourism, and emissions.  
 
 ### Tokenization 
 ```{r}
@@ -136,6 +135,8 @@ ggplot(data = virginia_sentiment_bing,
   ggtitle("Virginia Climate Change Sentiment")+
   theme_minimal()
 ```
+Overall, Virginia news articles has a negative sentiment toward climate change suggesting that Virginia residents see climate change as a real issue.
+According to the sentiment categories graph, positive sentiment was most frequent in addition to trust. This may be due to the constructive nature of these news articles. They are often calls to action which are supported by facts. The most frequent negative sentiments were fear and anticipation, which is inline with how climate change activists express their concerns of climate change.   
 
 ### Word Cloud
 
@@ -192,8 +193,10 @@ virginia_words <- virginia_words %>%
 
 ```
 
-### Conclusion
+### Recommendations
 
+Based on my analysis, it seems that Virginians see climate change as something to anticipate and be fearful of. Overall, Virginians have a negative
+sentiment toward climate change because they see it as an important issue. I would recommend pursuing ways to make a direct effort to support climate change in virginia. Based on our word map and sentiment analysis, Virginians clearly know the major factors contributing to our changing climate. What's important for them are clear steps toward action to slow down climate change.
 
 
 
