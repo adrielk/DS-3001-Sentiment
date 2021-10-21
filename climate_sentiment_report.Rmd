@@ -1,0 +1,489 @@
+---
+title: "Climate Change Sentiment in the US"
+output: html_document
+---
+
+#### By: Adriel Kim, Peter Shin, Po Wei Tsao
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r, echo=FALSE, warning = FALSE}
+library(tidyverse)
+#install.packages("tidytext")
+library(tidytext)
+#install.packages("ggwordcloud")
+library(ggwordcloud)
+#install.packages("gutenbergr") 
+library(gutenbergr)
+#install.packages('textdata')
+library(textdata)
+```
+## Virginia Climate Change Sentiment
+
+```{r, echo=FALSE, warning = FALSE}
+
+doc1 = read_lines("text_data/virginia/virginia_1.txt")
+doc2 = read_lines("text_data/virginia/virginia_2.txt")
+doc3 = read_lines("text_data/virginia/virginia_3.txt")
+doc4 = read_lines("text_data/virginia/virginia_4.txt")
+doc5 = read_lines("text_data/virginia/virginia_5.txt")
+
+
+doc_full_char = c(doc1,doc2,doc3,doc4,doc5)
+
+doc_full = paste(doc_full_char, collapse=" ")
+
+doc_table = tibble(doc_full)
+
+doc_table$doc_full <- as.character(doc_table$doc_full)
+
+
+```
+### Word Frequencies
+```{r,echo=FALSE,warning = FALSE}
+ah_word <- doc_table %>%
+  unnest_tokens(word, doc_full)
+ah_count <- ah_word %>%
+  count(word, sort=TRUE)
+
+view(ah_count)
+ah_count$word <- as.factor(ah_count$word)  
+
+ah_word_sw <- ah_word %>%
+      anti_join(stop_words)
+
+ah_count_sw <- ah_word_sw %>%
+  count(word, sort=TRUE)
+
+ah_count_sw$word <- as.factor(ah_count_sw$word) 
+
+ggplot(
+  data = ah_count_sw[1:20,],
+  aes(x = fct_reorder(word,n), 
+      y = n)
+  ) + 
+  geom_col() + 
+  coord_flip()+
+  theme_light()
+
+```
+According to these frequencies, climate, change, carbon, tourism, temperatures, and emissions are most commonly mentioned in Virginia news articles. These are words that one would expect to see when reading climate change related news articles. These words suggest that Virginia news articles are focused on describing the problem of climate change and factors involved such as carbon, tourism, and emissions.  
+
+### Tokenization 
+```{r, echo=FALSE,warning = FALSE}
+
+#Tokenization by word
+
+doc_word = doc_table %>% 
+  unnest_tokens(word, doc_full)%>%
+  anti_join(stop_words)%>%
+  count(word,sort=TRUE)
+
+View(doc_word)
+
+#Tokenization by sentence
+doc_sentence = doc_table %>% 
+  unnest_tokens(sentence, doc_full, token = "sentences")
+View(doc_sentence)
+
+```
+
+
+```{r, echo=FALSE,warning = FALSE}
+#helps with the sentiment analysis, using package "textdata"
+
+get_sentiments('afinn')# we see a list of words and there classification, 2,467 - not really that many overall. 
+
+get_sentiments('nrc')# looks like a good amount more 13,891, but as we can see words are classified in several different categories. 
+
+get_sentiments('bing')# looks like a good amount more 6,776, but as we can see just negative and positive. 
+
+virginia_sentiment_afinn = doc_word %>% inner_join(get_sentiments("afinn"))
+
+virginia_sentiment_nrc = doc_word %>% inner_join(get_sentiments("nrc"))
+
+virginia_sentiment_bing = doc_word %>% inner_join(get_sentiments("bing"))
+
+View(virginia_sentiment_afinn)#discrete integer rating
+View(virginia_sentiment_nrc)#a sentiment cateogry
+View(virginia_sentiment_bing)#binary positive or negative classification
+
+```
+
+### Virginia Climate Change Sentiment Range
+```{r, echo=FALSE,warning = FALSE}
+
+ggplot(data = virginia_sentiment_afinn, 
+       aes(x=value)
+        )+
+  geom_histogram()+
+  ggtitle("Virginia Climate Change Sentiment Range")+
+  theme_minimal()
+
+
+ggplot(data = virginia_sentiment_nrc, 
+       aes(x=sentiment)
+        )+
+  geom_histogram(stat = "count")+
+  ggtitle("Virginia Climate Change Sentiment Categories")+
+  theme_minimal()
+
+ggplot(data = virginia_sentiment_bing, 
+       aes(x=sentiment)
+        )+
+  geom_histogram(stat = "count")+
+  ggtitle("Virginia Climate Change Sentiment")+
+  theme_minimal()
+```
+Overall, Virginia news articles has a negative sentiment toward climate change suggesting that Virginia residents see climate change as a real issue.
+According to the sentiment categories graph, positive sentiment was most frequent in addition to trust. This may be due to the constructive nature of these news articles. They are often calls to action which are supported by facts. The most frequent negative sentiments were fear and anticipation, which is inline with how climate change activists express their concerns of climate change.   
+
+### Word Cloud
+
+```{r, echo=FALSE,warning = FALSE}
+set.seed(42)
+ggplot(doc_word[1:100,], aes(label = word, size = n)
+       ) +
+  geom_text_wordcloud() +
+  theme_minimal()
+```
+
+### Term frequency - inverse document 
+```{r, echo=FALSE,warning = FALSE}
+doc1 = read_lines("text_data/virginia/virginia_1.txt")
+doc2 = read_lines("text_data/virginia/virginia_2.txt")
+doc3 = read_lines("text_data/virginia/virginia_3.txt")
+doc4 = read_lines("text_data/virginia/virginia_4.txt")
+doc5 = read_lines("text_data/virginia/virginia_5.txt")
+
+
+data_prep <- function(x){
+  i <- as_tibble(t(x))
+  ii <- unite(i,"text",remove = TRUE,sep = "")
+}
+
+doc1_bag = data_prep(doc1)
+doc2_bag = data_prep(doc2)
+doc3_bag = data_prep(doc3)
+doc4_bag = data_prep(doc4)
+doc5_bag = data_prep(doc5)
+
+View(doc2_bag)
+
+docs = c("doc1", "doc2", "doc3", "doc4", "doc5")
+tf_idf_text = tibble(docs, text=t(tibble(doc1_bag, doc2_bag, doc3_bag, doc4_bag, doc5_bag, .name_repair="universal")))
+
+View(tf_idf_text)
+
+word_count <- tf_idf_text %>%
+  unnest_tokens(word, text) %>%
+  count(docs, word, sort = TRUE)
+
+
+total_words <- word_count %>% 
+  group_by(docs) %>% 
+  summarize(total = sum(n))
+
+virginia_words <- left_join(word_count, total_words)
+
+View(virginia_words)
+
+virginia_words <- virginia_words %>%
+  bind_tf_idf(word, docs, n)
+
+virginia_words
+```
+
+### Recommendations
+
+Based on my analysis, it seems that Virginians see climate change as something to anticipate and be fearful of. Overall, Virginians have a negative
+sentiment toward climate change because they see it as an important issue. I would recommend pursuing ways to make a direct effort to support climate change in virginia. Based on our word map and sentiment analysis, Virginians clearly know the major factors contributing to our changing climate. What's important for them are clear steps toward action to slow down climate change.
+
+
+## New York Climate Change Sentiment
+
+```{r, echo=FALSE,warning = FALSE}
+doc1 <- read_lines("text_data/new_york_times/new_york_times_1.txt")
+doc2 <- read_lines("text_data/new_york_times/new_york_times_2.txt")
+doc3 <- read_lines("text_data/new_york_times/new_york_times_3.txt")
+doc4 <- read_lines("text_data/new_york_times/new_york_times_4.txt")
+doc5 <- read_lines("text_data/new_york_times/new_york_times_5.txt")
+nyc_docs = paste(doc1, doc2, doc3, doc4, doc5, sep=" ")
+# nyc_docs
+nyc_docs <- tibble(nyc_docs)
+
+nyc_docs$nyc_docs <- as.character(nyc_docs$nyc_docs)
+
+nyc_docs <- nyc_docs %>%
+  unnest_tokens(word, nyc_docs)%>%
+  anti_join(stop_words)%>%
+  count(word, sort=TRUE)
+
+View(nyc_docs)
+
+```
+
+```{r, echo=FALSE,warning = FALSE}
+#Code that performs sentiment analysis
+
+get_sentiments('afinn')# we see a list of words and there classification, 2,467 - not really that many overall. 
+
+get_sentiments('nrc')# looks like a good amount more 13,891, but as we can see words are classified in several different categories. 
+
+get_sentiments('bing')# looks like a good amount more 6,776, but as we can see just negative and positive. 
+
+nyc_docs_sentiment_afinn <- nyc_docs %>%
+  inner_join(get_sentiments("afinn"))
+  
+nyc_docs_sentiment_nrc <- nyc_docs %>%
+  inner_join(get_sentiments("nrc"))
+
+nyc_docs_sentiment_bing <- nyc_docs %>%
+  inner_join(get_sentiments("bing"))
+
+# View(nyc_docs_sentiment_nrc)
+# View(nyc_docs_sentiment_afinn)
+# View(nyc_docs_sentiment_bing)
+
+ggplot(data = nyc_docs_sentiment_afinn, 
+       aes(x=value)
+        )+
+  geom_histogram()+
+  ggtitle("New York Times Sentiment Range")+
+  theme_minimal()
+
+ggplot(data = nyc_docs_sentiment_nrc, 
+       aes(x=sentiment),
+        )+
+  geom_histogram(stat = "count")+
+  ggtitle("New York Times Sentiment Categories")+
+  theme_minimal()
+
+ggplot(data = nyc_docs_sentiment_bing, 
+       aes(x=sentiment),
+        )+
+  geom_histogram(stat = "count")+
+  ggtitle("New York Times Sentiment Positivity")+
+  theme_minimal()
+
+```
+
+```{r, echo=FALSE,warning = FALSE}
+# Code for the term frequency stuff
+data_prep <- function(x){
+  i <- as_tibble(t(x))
+  ii <- unite(i,"text",remove = TRUE,sep = "")
+}
+
+doc1 <- read_lines("text_data/new_york_times/new_york_times_1.txt")
+doc2 <- read_lines("text_data/new_york_times/new_york_times_2.txt")
+doc3 <- read_lines("text_data/new_york_times/new_york_times_3.txt")
+doc4 <- read_lines("text_data/new_york_times/new_york_times_4.txt")
+doc5 <- read_lines("text_data/new_york_times/new_york_times_5.txt")
+
+doc1_bag <- data_prep(doc1)
+# str(doc1_bag)
+
+doc2_bag <- data_prep(doc2)
+# str(doc2_bag) 
+
+doc3_bag <- data_prep(doc3)
+# str(doc1_bag)
+
+doc4_bag <- data_prep(doc4)
+# str(doc1_bag)
+
+doc5_bag <- data_prep(doc5)
+# str(doc1_bag)
+
+docs <- c("doc1","doc2", "doc3", "doc4", "doc5")
+tf_idf_text_ny <- tibble(docs,text=t(tibble(doc1_bag, doc2_bag, doc3_bag, doc4_bag, doc5_bag, .name_repair = "universal")))
+
+
+word_count <- tf_idf_text_ny %>%
+  unnest_tokens(word, text) %>%
+  count(docs, word, sort = TRUE)
+
+View(tf_idf_text_ny)
+
+ny_total_words <- word_count %>% 
+  group_by(docs) %>% 
+  summarize(total = sum(n))
+ny_total_words
+
+ny_doc_words <- left_join(word_count, ny_total_words)
+
+ny_doc_words <- ny_doc_words %>%
+  bind_tf_idf(word, docs, n)
+
+ny_doc_words <- ny_doc_words %>%
+  anti_join(stop_words)
+
+View(ny_doc_words)
+
+```
+Conclusion:
+
+As shown in the diagrams above, the New York Times has a clear negative bias in terms of its sentiment towards the topic of climate change. The methods I used for analyzing sentiment was to combine the articles into one string before analysis. This allows me to observe the entire newspaper as a whole because the data from the 5 articles I used are combined. After combining the source material, I used dplyr to remove stop words and unnecessary tokens. This cleaned the text of various symbols and meaningless words. From there, I utilized libraries (afinn, nrc and bing) that gave me data regarding the text that was mined from the articles. From these results, I generated 3 graphs (one for each library), allow for the biases of the New York Times to be clearly shown in a visual manner.
+
+The results of the these visualizations are clear: the New York Times has a negative bias towards the topic of climate change. As one can see from the graph labeled "New York Times Sentiment Positivity", a majority of the words throughout the articles are negatively bias. Digging deeper into this idea, we can look at the graph titled "New York Times Sentiment Categories." While this graph shows that the "negative" bar is lower than the "positive" bar, we can take note that most of the other categories are biased towards negativity. Bars for the categories "fear", "disgust" and "anger" are a few of the more prominent ones, allowing us to further analyze and break down the negativity within the articles. Lastly, looking at the "New York Times Sentiment Range" graph, we can see that there are many words ranged in the -2 range. This shows us where exactly this negative bias falls on in a scale, telling us that the negative bias is definitely prominent. However, given that the number of words in the -3 category is rather small, we can conclude that the articles are not necessarily "extremely negative." Rather, they show the issue of climate change with a moderate negative bias.
+
+In terms of the term frequencies and inverse document frequencies, words such as "climate" and "change" are frequent (as expected). Looking further down the list, we do see some interesting key words. For example, "warming", "flooding" and "weather" are among the many words that rank high in term frequency. This aligns with the negative bias we saw in the graphs earlier. The patterns of negativity are prominent, as demonstrated from the graphs and the term frequencies of "doomsday" words, such as "warming" and "flooding." The inverse document frequency also support that words such as "warming", "flooding" and "weather" are important key words within the corpus.
+
+I think this negativity is because of many reasons. First of all, the New York Times is a very global newspaper, so its views would reflect the more popular beliefs of climate change being a looming threat to the world. This regions is also a more Democratic region, which aligns with the view that climate change is a threat and must be dealt with. To the non-profit, I would suggest that this region indicates many people are aware of the threats of climate change and see it as a very real threat. If it were to start campaigns to raise awareness about threats of climate change in that area, I believe it would garner lots of support.
+
+
+## Texas Climate Change Sentiment
+
+```{r, echo=FALSE,warning = FALSE}
+# Read data
+
+doc1 <- read_lines("text_data/texas/texas1.txt")
+doc2 <- read_lines("text_data/texas/texas2.txt")
+doc3 <- read_lines("text_data/texas/texas3.txt")
+doc4 <- read_lines("text_data/texas/texas4.txt")
+doc5 <- read_lines("text_data/texas/texas5.txt")
+doc <- paste(doc1, doc2, doc3, doc4, doc5)
+
+doc_full_char = c(doc1,doc2,doc3,doc4,doc5)
+doc_full = paste(doc_full_char, collapse=" ")
+doc_table = tibble(doc_full)
+doc_table$doc_full <- as.character(doc_table$doc_full)
+View(doc_table)
+```
+### Word Frequencies
+```{r, echo=FALSE,warning = FALSE}
+ah_word <- doc_table %>%
+  unnest_tokens(word, doc_full)
+ah_count <- ah_word %>%
+  count(word, sort=TRUE)
+view(ah_count)
+ah_count$word <- as.factor(ah_count$word)  
+ah_word_sw <- ah_word %>%
+      anti_join(stop_words)
+ah_count_sw <- ah_word_sw %>%
+  count(word, sort=TRUE)
+ah_count_sw$word <- as.factor(ah_count_sw$word) 
+ggplot(
+  data = ah_count_sw[1:20,],
+  aes(x = fct_reorder(word,n), 
+      y = n)
+  ) + 
+  geom_col() + 
+  coord_flip()+
+  theme_light()
+```
+
+### Tokenization 
+```{r, echo=FALSE,warning = FALSE}
+#Tokenization by word
+doc_word = doc_table %>% 
+  unnest_tokens(word, doc_full)%>%
+  anti_join(stop_words)%>%
+  count(word,sort=TRUE)
+View(doc_word)
+#Tokenization by sentence
+doc_sentence = doc_table %>% 
+  unnest_tokens(sentence, doc_full, token = "sentences")
+View(doc_sentence)
+```
+
+
+```{r, echo=FALSE,warning = FALSE}
+#helps with the sentiment analysis, using package "textdata"
+get_sentiments('afinn')# we see a list of words and there classification, 2,467 - not really that many overall. 
+get_sentiments('nrc')# looks like a good amount more 13,891, but as we can see words are classified in several different categories. 
+get_sentiments('bing')# looks like a good amount more 6,776, but as we can see just negative and positive. 
+texas_sentiment_afinn = doc_word %>% inner_join(get_sentiments("afinn"))
+texas_sentiment_nrc = doc_word %>% inner_join(get_sentiments("nrc"))
+texas_sentiment_bing = doc_word %>% inner_join(get_sentiments("bing"))
+View(texas_sentiment_afinn)#discrete integer rating
+View(texas_sentiment_nrc)#a sentiment cateogry
+View(texas_sentiment_bing)#binary positive or negative classification
+```
+
+### Texas Climate Change Sentiment Range
+```{r, echo=FALSE,warning = FALSE}
+ggplot(data = texas_sentiment_afinn, 
+       aes(x=value)
+        )+
+  geom_histogram()+
+  ggtitle("Texas Climate Change Sentiment Range")+
+  theme_minimal()
+ggplot(data = texas_sentiment_nrc, 
+       aes(x=sentiment)
+        )+
+  geom_histogram(stat = "count")+
+  ggtitle("Texas Climate Change Sentiment Categories")+
+  theme_minimal()
+ggplot(data = texas_sentiment_bing, 
+       aes(x=sentiment)
+        )+
+  geom_histogram(stat = "count")+
+  ggtitle("Texas Climate Change Sentiment")+
+  theme_minimal()
+```
+
+### Word Cloud
+
+```{r, echo=FALSE,warning = FALSE}
+set.seed(42)
+ggplot(doc_word[1:100,], aes(label = word, size = n)
+       ) +
+  geom_text_wordcloud() +
+  theme_minimal()
+```
+
+### Term frequency - inverse document 
+```{r, echo=FALSE,warning = FALSE}
+doc1 = read_lines("text_data/texas/texas1.txt")
+doc2 = read_lines("text_data/texas/texas2.txt")
+doc3 = read_lines("text_data/texas/texas3.txt")
+doc4 = read_lines("text_data/texas/texas4.txt")
+doc5 = read_lines("text_data/texas/texas5.txt")
+data_prep <- function(x){
+  i <- as_tibble(t(x))
+  ii <- unite(i,"text",remove = TRUE,sep = "")
+}
+doc1_bag = data_prep(doc1)
+doc2_bag = data_prep(doc2)
+doc3_bag = data_prep(doc3)
+doc4_bag = data_prep(doc4)
+doc5_bag = data_prep(doc5)
+View(doc2_bag)
+docs = c("doc1", "doc2", "doc3", "doc4", "doc5")
+tf_idf_text = tibble(docs, text=t(tibble(doc1_bag, doc2_bag, doc3_bag, doc4_bag, doc5_bag, .name_repair="universal")))
+View(tf_idf_text)
+word_count <- tf_idf_text %>%
+  unnest_tokens(word, text) %>%
+  count(docs, word, sort = TRUE)
+total_words <- word_count %>% 
+  group_by(docs) %>% 
+  summarize(total = sum(n))
+texas_words <- left_join(word_count, total_words)
+View(texas_words)
+texas_words <- texas_words %>%
+  bind_tf_idf(word, docs, n)
+```
+
+### Conclusion
+```{r, echo=FALSE,warning = FALSE}
+head(doc_word, 15)
+```
+
+The top 15 words in this aggregation of articles from Texas include words such as climate, change, texas, lubbock, etc. These words show up as a result of the topic as well as the source location. Then the following top words that pop up include Hayhoe, carbon, science, and energy. Hayhoe is an atmospheric scientist, and among the words that came up, it seems that Texas articles focus on the scientific aspect of climate change related to carbon and energy.  Also, another group of top words that occur frequently are Trump, U.S., and world. This implies that these articles also focus on the political aspect of climate change. These articles were focused around 2020 to 2021, which explains why President Trump's name occurs often in these political articles.
+Furthermore, according to the td-idf score, it states that Hayhoe and strike as the second and third most relevant words among the articles from the Texas region. But the most relevant word by a good margin is Trump. It can be concluded that the words that surface most in these articles is science and political related and President Trump was involved in both aspects of climate change.
+According to the sentiment analysis, it most likely implies that there isn't a stark difference between the positive and negative sentiment on climate change in this area. However, it does lean a little toward the negative side. 
+
+
+
+
+### Synthesis
+
+Within the three regions (Virginia, New York, and Texas) we've analyzed, the general sentiment toward climate change is negative. However,
+each of these states have different causes for a negative sentiment toward climate change. In Virginia, climate change is seen as something to be fearful of and anticipate. It seems that Virginians are in support for actions toward alleviating climate change and they are fearful of its consequences. New York is similar, but to a more extreme degree. This may be due to the fact that the news articles used to represent New York lean heavily to the left, which tends to promote climate change efforts with extreme calls to action. Lastly, Texas focuses more on the scientific aspect of climate change as opposed to actions to address it.  
+
+
+
+
